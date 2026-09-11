@@ -1,0 +1,70 @@
+﻿{
+    "luauRevision":  "47cda63705c25633d757bacdcb7c9c6190625cad",
+    "configuration":  "RelWithDebInfo",
+    "generator":  "Visual Studio 17 2022",
+    "architecture":  "x64",
+    "cmake":  "cmake version 4.4.3",
+    "compiler":  {
+                     "id":  "MSVC",
+                     "version":  "19.44.35214.0"
+                 },
+    "definitions":  {
+                        "LUAU_EXTERN_C":  "ON",
+                        "LUAU_STATIC_CRT":  "ON",
+                        "LUA_USE_LONGJMP":  1,
+                        "LUA_VECTOR_SIZE":  3,
+                        "LUA_VECTOR_DOUBLE":  0
+                    },
+    "previousArtifacts":  [
+                              {
+                                  "name":  "Luau.Ast.lib",
+                                  "sha256":  "ada565a467d46ad4d5d86e5162d69e7a527a88d1bfb659a25cd45550b239479c"
+                              },
+                              {
+                                  "name":  "Luau.CLI.lib.lib",
+                                  "sha256":  "84de6713811dda82bf4f56f810c9d6ebd422b7c0cda7159bbf9c3477f59e67f4"
+                              },
+                              {
+                                  "name":  "Luau.Compiler.lib",
+                                  "sha256":  "eada89e20ab4878310c518a086b1ef5f7260b6df2fcab55caa530f4253fa02b3"
+                              },
+                              {
+                                  "name":  "Luau.VM.lib",
+                                  "sha256":  "9214821e2300d81c02c66e8956a4327f3b74fa1b3e4460defadb05a8f348719d"
+                              }
+                          ],
+    "artifacts":  [
+                      {
+                          "name":  "Luau.Ast.lib",
+                          "sha256":  "564ead217a33bc2bbd48b8ea8b6653d8358304eb1f9e68ba03f1ce300db04ec2"
+                      },
+                      {
+                          "name":  "Luau.Bytecode.lib",
+                          "sha256":  "7e45e7f74c3f53c50c247d9ad82bd18c0fae8c64ebc17738e9b579624153c03e"
+                      },
+                      {
+                          "name":  "Luau.Common.lib",
+                          "sha256":  "3e82f92ba37220dbf608306e63c3cc2f3dd32fb30be682e7734aeae6a60e6cd3"
+                      },
+                      {
+                          "name":  "Luau.Compiler.lib",
+                          "sha256":  "5568ba4486cd1bf898bdb2824ddcffad00890cb6ca6944880fc1e4556c0523cf"
+                      },
+                      {
+                          "name":  "Luau.Config.lib",
+                          "sha256":  "c9f40e46a6af04c4bd47c6e29a7a13385922d87aa636c9d2b3dcd41ddbead00b"
+                      },
+                      {
+                          "name":  "Luau.Require.lib",
+                          "sha256":  "c10ef082a5900d31268c402b736aa9131f93f4abf3e90135b7c0e9f4cdd08844"
+                      },
+                      {
+                          "name":  "Luau.VM.lib",
+                          "sha256":  "8bd6eb6433800482654a5733972a400e1953fa62f52de3a320b429713deacb94"
+                      },
+                      {
+                          "name":  "Odin.Luau.Support.lib",
+                          "sha256":  "a532bbc578e1cde76f4a01480ddcca93bb96639fc1ec8fa9536c439f52d2edf4"
+                      }
+                  ]
+}
