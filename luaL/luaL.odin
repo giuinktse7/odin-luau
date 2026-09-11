@@ -5,6 +5,7 @@ import "../lua"
 when ODIN_OS == .Windows {
     foreign import LuauVM {
         "../lib/windows/Luau.VM.lib",
+        "../lib/windows/Luau.Common.lib",
     }
 } else {
     #panic("Unsupported OS(currently). If you want, make a PR with the compiled binaries for your OS.")
@@ -39,8 +40,8 @@ foreign LuauVM {
     checkunsigned :: proc(L: ^State, numArg: c.int) -> c.uint ---
     optunsigned   :: proc(L: ^State, numArg: c.int, def: c.uint) -> c.uint ---
 
-    checkvector :: proc(L: ^State, narg: c.int) -> [VEC_LEN]c.float ---
-    optvector   :: proc(L: ^State, narg: c.int, def: [VEC_LEN]c.float) -> [VEC_LEN]c.float ---
+    checkvector :: proc(L: ^State, narg: c.int) -> [^]c.float ---
+    optvector   :: proc(L: ^State, narg: c.int, def: [^]c.float) -> [^]c.float ---
 
     checkstack :: proc(L: ^State, sz: c.int, msg: cstring) ---
     checktype  :: proc(L: ^State, narg, t: c.int) ---
@@ -51,8 +52,8 @@ foreign LuauVM {
 
     checkbuffer :: proc(L: ^State, narg: c.int, len: ^c.size_t) -> rawptr ---
 
-    @(link_name = "where")
-    _where :: proc(L: ^State, lvl: c.int) ---
+    @(link_name = "luaL_where")
+    where_ :: proc(L: ^State, lvl: c.int) ---
 
     // errorL :: proc(L: ^State)
 
@@ -67,9 +68,22 @@ foreign LuauVM {
     typename  :: proc(L: ^State, idx: c.int) -> cstring ---
 }
 
-checkstring :: proc "c" (L: ^State, numArg: c.int) -> string { return string(checklstring(L, numArg, nil)) }
+// These helpers return borrowed views into VM-owned storage. The explicit
+// lengths preserve embedded NULs.
+checkstring :: proc "c" (L: ^State, numArg: c.int) -> string {
+    length: c.size_t
+    data := checklstring(L, numArg, &length)
+    return string((cast([^]u8)data)[:int(length)])
+}
 
-optstring :: proc "c" (L: ^State, numArg: c.int, def: cstring) -> string { return string(optlstring(L, numArg, def, nil)) }
+optstring :: proc "c" (L: ^State, numArg: c.int, def: cstring) -> string {
+    length: c.size_t
+    data := optlstring(L, numArg, def, &length)
+    if data == nil {
+        return ""
+    }
+    return string((cast([^]u8)data)[:int(length)])
+}
 
 argcheck :: proc "c" (L: ^State, cond: bool, arg: c.int, extramsg: cstring) {
     if !cond {
@@ -85,7 +99,9 @@ argexpected :: proc "c" (L: ^State, cond: bool, arg: c.int, tname: cstring) {
 
 getmetatable :: proc "c" (L: ^State, n: cstring) -> c.int { return lua.getfield(L, lua.REGISTRYINDEX, n) }
 
-opt :: proc "c" (L: ^State, f: #type proc "c" (^State, c.int) -> c.int, n: c.int, d: c.int) -> bool { return lua.isnoneornil(L, bool(n) ? d : f(L, n)) }
+opt :: proc "c" (L: ^State, f: #type proc "c" (^State, c.int) -> c.int, n: c.int, d: c.int) -> c.int {
+    return d if lua.isnoneornil(L, n) else f(L, n)
+}
 
 // checkstring :: proc(L: ^State, n: c.int) {
 //     return string(checklstring(L, n, nil))

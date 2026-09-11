@@ -4,6 +4,7 @@ import "core:c"
 when ODIN_OS == .Windows {
     foreign import LuauVM {
         "../lib/windows/Luau.VM.lib",
+        "../lib/windows/Luau.Common.lib",
     }
 } else {
     #panic("Unsupported OS(currently). If you want, make a PR with the compiled binaries for your OS.")
@@ -26,7 +27,7 @@ Status :: enum c.int {
     BREAK, // yielded for a debug breakpoint
 }
 
-CoStatus :: enum {
+CoStatus :: enum c.int {
     CORUN = 0, // running
     COSUS,     // suspended
     CONOR,     // 'normal' (it resumed another coroutine)
@@ -50,6 +51,7 @@ Type :: enum c.int {
 
     LIGHTUSERDATA,
     NUMBER,
+    INTEGER,
     VECTOR,
 
     STRING, // all types above this must be value types, all types below this must be GC types - see iscollectable
@@ -60,14 +62,18 @@ Type :: enum c.int {
     USERDATA,
     THREAD,
     BUFFER,
+    CLASS,
+    OBJECT,
 
     // values below this line are used in GCObject tags but may never show up in TValue type tags
+    DEADKEY,
     PROTO,
     UPVAL,
-    DEADKEY,
+
+    ALL,
 
     // the count of TValue type tags
-    COUNT = PROTO,
+    COUNT = DEADKEY,
 }
 
 Number   :: c.double
@@ -202,18 +208,18 @@ foreign LuauVM {
     /*
     ** coroutine functions
     */
-    lua_yield         :: proc(L: ^State, nresults: c.int) -> c.int ---
-    lua_break         :: proc(L: ^State) -> c.int ---
-    lua_resume        :: proc(L: ^State, from: ^State, narg: c.int) -> c.int ---
-    lua_resumeerror   :: proc(L: ^State, from: ^State) -> c.int ---
-    lua_status        :: proc(L: ^State) -> c.int ---
-    lua_isyieldable   :: proc(L: ^State) -> c.int ---
-    lua_getthreaddata :: proc(L: ^State) -> rawptr ---
-    lua_setthreaddata :: proc(L: ^State, data: rawptr) ---
-    lua_costatus      :: proc(L: ^State, co: ^State) -> c.int ---
+    yield_        :: proc(L: ^State, nresults: c.int) -> c.int ---
+    break_        :: proc(L: ^State) -> c.int ---
+    resume        :: proc(L: ^State, from: ^State, narg: c.int) -> c.int ---
+    resumeerror   :: proc(L: ^State, from: ^State) -> c.int ---
+    status        :: proc(L: ^State) -> c.int ---
+    isyieldable   :: proc(L: ^State) -> c.int ---
+    getthreaddata :: proc(L: ^State) -> rawptr ---
+    setthreaddata :: proc(L: ^State, data: rawptr) ---
+    costatus      :: proc(L: ^State, co: ^State) -> c.int ---
 }
 
-GCOp :: enum {
+GCOp :: enum c.int {
     // stop and resume incremental garbage collection
     GCSTOP,
     GCRESTART,
@@ -257,6 +263,7 @@ GCOp :: enum {
     GCSETGOAL,
     GCSETSTEPMUL,
     GCSETSTEPSIZE,
+    GCISPAUSED,
 }
 
 Destructor :: #type proc "c" (L: ^State, userdata: rawptr)
@@ -304,14 +311,13 @@ foreign LuauVM {
     getallocf :: proc(L: ^State, ud: ^rawptr) -> Alloc ---
 
     ref   :: proc(L: ^State, idx: c.int) -> c.int ---
-    unref :: proc(L: ^State, ref: c.int) ---
+    unref :: proc(L: ^State, ref: c.int) -> c.int ---
 }
 
 NOREF :: (-1)
 REFNIL :: 0
 
-    // rawgeti     :: proc(L: ^State, idx, n: c.int) -> c.int ---
-getref :: proc "c" (L: ^State, ref: c.int) -> c.int { return rawgeti(L, 0, ref) }
+getref :: proc "c" (L: ^State, ref: c.int) -> c.int { return rawgeti(L, REGISTRYINDEX, ref) }
 
 /*
 ** ===============================================================
@@ -338,7 +344,7 @@ isvector        :: #force_inline proc "c" (L: ^State, n: c.int) -> bool { return
 isthread        :: #force_inline proc "c" (L: ^State, n: c.int) -> bool { return type(L, n) == .THREAD }
 isbuffer        :: #force_inline proc "c" (L: ^State, n: c.int) -> bool { return type(L, n) == .BUFFER }
 isnone          :: #force_inline proc "c" (L: ^State, n: c.int) -> bool { return cast(c.int) type(L, n) == TNONE }
-isnoneornil     :: #force_inline proc "c" (L: ^State, n: c.int) -> bool { return type(L, n) <= .NIL }
+isnoneornil     :: #force_inline proc "c" (L: ^State, n: c.int) -> bool { return cast(c.int) type(L, n) <= cast(c.int) Type.NIL }
 is              :: #force_inline proc "c" (L: ^State, n: c.int, t: Type) -> bool { return type(L, n) == t }
 
 pushliteral       :: #force_inline proc "c" (L: ^State, s: string) { pushlstring(L, cast(cstring) raw_data(s), cast(c.size_t) len(s)) }
@@ -348,13 +354,23 @@ pushlightuserdata :: #force_inline proc "c" (L: ^State, p: rawptr) { pushlightus
 
 setglobal :: proc "c" (L: ^State, s: cstring) { setfield(L, GLOBALSINDEX, s) }
 getglobal :: proc "c" (L: ^State, s: cstring) -> c.int { return getfield(L, GLOBALSINDEX, s) }
-tostring  :: proc "c" (L: ^State, i: c.int) -> string { return string(tolstring(L, i, nil)) }
+
+// Returns a borrowed view into VM-owned storage. It remains valid only while
+// Luau keeps the string alive. The explicit length preserves embedded NULs.
+tostring :: proc "c" (L: ^State, i: c.int) -> string {
+    length: c.size_t
+    data := tolstring(L, i, &length)
+    if data == nil {
+        return ""
+    }
+    return string((cast([^]u8)data)[:int(length)])
+}
 
 // pushfstring :: proc() {}
 
 Debug :: struct {
     name, what, source, short_src: cstring,
-    linedefined, currentline: c.int,
+    linedefined, currentline, protoid, bytecodeid: c.int,
     nupvals, nparams: c.uchar,
     isvararg: c.char,
     userdata: rawptr,
@@ -362,7 +378,7 @@ Debug :: struct {
 }
 
 Hook     :: #type proc "c" (L: ^State, ar: ^Debug)
-Coverage :: #type proc "c" (ctx, function: rawptr, linedefined, depth: c.int, hits: [^]c.int, size: c.size_t)
+Coverage :: #type proc "c" (ctx: rawptr, function: cstring, linedefined, depth: c.int, hits: [^]c.int, size: c.size_t)
 
 @(link_prefix = "lua_")
 foreign LuauVM {
@@ -385,19 +401,50 @@ foreign LuauVM {
     callbacks :: proc(L: ^State) -> ^Callbacks ---
 }
 
+Interrupt_Callback       :: #type proc "c" (L: ^State, gc: c.int)
+Panic_Callback           :: #type proc "c" (L: ^State, errcode: c.int)
+Userthread_Callback      :: #type proc "c" (parent, L: ^State)
+Useratom_Callback        :: #type proc "c" (L: ^State, s: cstring, length: c.size_t) -> c.int16_t
+Debug_Callback           :: #type proc "c" (L: ^State, ar: ^Debug)
+Protected_Error_Callback :: #type proc "c" (L: ^State)
+Allocate_Callback        :: #type proc "c" (
+    L: ^State,
+    block: rawptr,
+    old_size, new_size: c.size_t,
+    memory_category: u8,
+    value_type, tag: c.int,
+)
+Resume_Callback :: #type proc "c" (L: ^State)
+Free_Callback   :: #type proc "c" (L: ^State, block: rawptr)
+
 Callbacks :: struct {
     userdata: rawptr,
+    interrupt: Interrupt_Callback,
+    panic: Panic_Callback,
+    userthread: Userthread_Callback,
+    useratom: Useratom_Callback,
+    debugbreak: Debug_Callback,
+    debugstep: Debug_Callback,
+    debuginterrupt: Debug_Callback,
+    debugprotectederror: Protected_Error_Callback,
+    onallocate: Allocate_Callback,
+    preresume: Resume_Callback,
+    postresume: Resume_Callback,
+    onfree: Free_Callback,
+}
 
-    interrupt: #type proc(L: ^State, gc: c.int),
-    panic: #type proc(L: ^State, errcode: c.int),
+when ODIN_ARCH == .amd64 {
+    #assert(size_of(Debug) == 320)
+    #assert(align_of(Debug) == 8)
+    #assert(offset_of(Debug, protoid) == 40)
+    #assert(offset_of(Debug, userdata) == 56)
+    #assert(offset_of(Debug, ssbuf) == 64)
 
-    userthread: #type proc(LP: ^State, L: ^State),
-    useratom: #type proc(s: cstring, l: c.size_t) -> c.int16_t,
-
-    debugbreak: #type proc(L: ^State, ar: ^Debug),
-    debugstep: #type proc(L: ^State, ar: ^Debug),
-    debuginterrupt: #type proc(L: ^State, ar: ^Debug),
-    debugprotectederror: #type proc(L: ^State),
+    #assert(size_of(Callbacks) == 104)
+    #assert(align_of(Callbacks) == 8)
+    #assert(offset_of(Callbacks, useratom) == 32)
+    #assert(offset_of(Callbacks, onallocate) == 72)
+    #assert(offset_of(Callbacks, onfree) == 96)
 }
 
 /******************************************************************************
