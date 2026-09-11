@@ -1,4 +1,4 @@
-package phase1_tests
+package compiler_vm_tests
 
 import "core:c"
 import "core:strings"
@@ -73,7 +73,7 @@ compile_execute_and_callback :: proc(t: ^testing.T) {
     lua.pushcfunction(state, host_add, "host_add")
     lua.setglobal(state, "host_add")
 
-    status := load_source(state, `return host_add(20, 22), "a\0b"`, "=phase1-success\x00")
+	status := load_source(state, `return host_add(20, 22), "a\0b"`, "=compiler-vm-success\x00")
     if !testing.expect_value(t, status, lua.Status.OK) {
         testing.fail_now(t, lua.tostring(state, -1))
     }
@@ -96,12 +96,12 @@ protected_errors_are_reported :: proc(t: ^testing.T) {
     defer lua.close(state)
     luaL.openlibs(state)
 
-    syntax_status := load_source(state, "local =", "=phase1-syntax\x00")
+	syntax_status := load_source(state, "local =", "=compiler-vm-syntax\x00")
     testing.expect(t, syntax_status != .OK, "invalid syntax unexpectedly loaded")
     testing.expect(t, len(lua.tostring(state, -1)) > 0, "syntax error had no diagnostic")
     lua.pop(state, 1)
 
-    load_status := load_source(state, `error("phase1 boom")`, "=phase1-runtime\x00")
+	load_status := load_source(state, `error("compiler VM boom")`, "=compiler-vm-runtime\x00")
     if !testing.expect_value(t, load_status, lua.Status.OK) {
         testing.fail_now(t, lua.tostring(state, -1))
     }
@@ -111,7 +111,7 @@ protected_errors_are_reported :: proc(t: ^testing.T) {
     error_message := lua.tostring(state, -1)
     testing.expectf(
         t,
-        strings.contains(error_message, "phase1 boom"),
+		strings.contains(error_message, "compiler VM boom"),
         "runtime error did not contain the original message: %q",
         error_message,
     )
@@ -125,7 +125,7 @@ repeated_lifecycle :: proc(t: ^testing.T) {
             return
         }
 
-        load_status := load_source(state, "return 42", "=phase1-lifecycle\x00")
+		load_status := load_source(state, "return 42", "=compiler-vm-lifecycle\x00")
         if !testing.expect_value(t, load_status, lua.Status.OK) {
             testing.fail_now(t, lua.tostring(state, -1))
         }
@@ -186,7 +186,7 @@ corrected_helpers_and_symbols :: proc(t: ^testing.T) {
     lua.pop(state, 1)
 
     coroutine := lua.newthread(state)
-    load_status := load_source(coroutine, "return 91", "=phase1-coroutine\x00")
+	load_status := load_source(coroutine, "return 91", "=compiler-vm-coroutine\x00")
     if !testing.expect_value(t, load_status, lua.Status.OK) {
         testing.fail_now(t, lua.tostring(coroutine, -1))
     }
