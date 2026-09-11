@@ -1,0 +1,27 @@
+{
+    "$schema": "file:///C:/Users/jonat/Documents/dev/odin/ols/misc/odinfmt.schema.json",
+
+    "character_width": 120,
+
+    "tabs": true,
+    "tabs_width": 4,
+
+    "newline_limit": 1,
+    "newline_style": "LF",
+    "multiline_composite_literals": true,
+    "multiline_call_style": "Block_Arguments",
+    "align_constant_definitions": true,
+    "preserve_struct_blank_lines": true,
+    "align_struct_values": true,
+
+    "space_single_line_blocks": true,
+    "remove_empty_lines_at_start_of_blocks": true,
+    "closing_brace_on_own_line": true,
+
+    // Single statement case
+    "inline_single_stmt_case": true,
+    "inline_single_stmt_case_mode": "Return",
+    "align_single_stmt_case": true,
+
+    "preserve_do_mode": "Guard"
+}
